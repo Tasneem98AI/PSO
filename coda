@@ -1,0 +1,59 @@
+import numpy as np
+from sklearn.tree import DecisionTreeClassifier
+from sklearn.datasets import make_classification
+from sklearn.model_selection import train_test_split
+from sklearn.metrics import accuracy_score
+import random
+
+w = 0.7   # Inertia weight
+c1 = 2    # Cognitive coefficient
+c2 = 2    # Social coefficient
+r1 = 0.5  # Random factor 1
+r2 = 0.3  # Random factor 2
+n_particles = 20  # Number of particles
+n_features = 5    # Number of features (from the dataset)
+max_iter = 10     # Number of iterations
+
+X, y = make_classification(n_samples=100, n_features=n_features, random_state=42)
+
+X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.3, random_state=42)
+
+particles = np.random.randint(2, size=(n_particles, n_features))  # Each particle has a binary vector for feature selection
+velocities = np.random.rand(n_particles, n_features) * 0.1  # Initial velocity
+personal_best = particles.copy()
+personal_best_scores = np.zeros(n_particles) - 1  # Initialize personal best scores
+global_best = personal_best[0]
+global_best_score = -1
+
+def fitness_function(selected_features):
+    X_selected = X_train[:, selected_features == 1]
+    
+    clf = DecisionTreeClassifier()
+    clf.fit(X_selected, y_train)
+    
+    X_test_selected = X_test[:, selected_features == 1]
+    y_pred = clf.predict(X_test_selected)
+    
+    return accuracy_score(y_test, y_pred)
+
+for iteration in range(max_iter):
+    for i in range(n_particles):
+        current_fitness = fitness_function(particles[i])
+        
+        if current_fitness > personal_best_scores[i]:
+            personal_best_scores[i] = current_fitness
+            personal_best[i] = particles[i].copy()
+        
+        if personal_best_scores[i] > global_best_score:
+            global_best_score = personal_best_scores[i]
+            global_best = particles[i].copy()
+    
+    for i in range(n_particles):
+        velocities[i] = (w * velocities[i] 
+                         + c1 * r1 * (personal_best[i] - particles[i]) 
+                         + c2 * r2 * (global_best - particles[i]))
+        
+        particles[i] = np.where(np.random.rand(n_features) < 1 / (1 + np.exp(-velocities[i])), 1, 0)
+
+print(f"Final best global solution: {global_best}")
+print(f"Final global best fitness (accuracy): {global_best_score}")
